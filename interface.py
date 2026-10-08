@@ -292,3 +292,47 @@ def atualizar_campos_sintonia(*_):
         entries_pid['td'].configure(state='normal')
         botao_limpar.configure(state='normal')
 
+
+def selecionar_identificacao():
+    identificacao_ativa['metodo'] = var_metodo_id.get()
+    abas.tab(1, state='normal')
+    atualizar_campos_sintonia()
+    var_status.set(f"Identificacao selecionada: {identificacao_ativa['metodo']}")
+    abas.select(1)
+
+
+def limpar_parametros():
+    if var_modo.get() == 'Manual':
+        var_kp.set('')
+        var_ti.set('')
+        var_td.set('')
+
+
+def montar_planta_interface(k_sel, tau_sel, theta_sel):
+    G_interface = ct.tf([k_sel], [tau_sel, 1])
+    num_delay_interface, den_delay_interface = ct.pade(theta_sel, 1)
+    Delay_interface = ct.tf(num_delay_interface, den_delay_interface)
+    H_interface = G_interface * Delay_interface
+    return H_interface
+
+
+def montar_controlador_interface(kp, ti, td, planta):
+    numKp_interface = np.array([kp])
+    denKp_interface = np.array([1])
+    HKp_interface = ct.tf(numKp_interface, denKp_interface)
+
+    numKi_interface = np.array([kp])
+    denKi_interface = np.array([ti,0])
+    HKi_interface = ct.tf(numKi_interface, denKi_interface)
+
+    numKd_interface = np.array([kp*td,0])
+    denKd_interface = np.array([1])
+    HKd_interface = ct.tf(numKd_interface, denKd_interface)
+
+    Hctrl1_interface = ct.parallel(HKp_interface, HKi_interface)
+    Hctrl_interface = ct.parallel(Hctrl1_interface, HKd_interface)
+
+    Hdel_interface = ct.series(planta, Hctrl_interface)
+    Hcl_interface = ct.feedback(Hdel_interface, 1)
+    return Hcl_interface
+
