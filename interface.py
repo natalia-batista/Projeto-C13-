@@ -244,3 +244,51 @@ toolbar_pid = NavigationToolbar2Tk(canvas_pid, painel_grafico_pid, pack_toolbar=
 toolbar_pid.update()
 toolbar_pid.pack(fill='x')
 
+def parametros_metodo_interface():
+    k_sel, tau_sel, theta_sel, _, _ = obter_identificacao_ativa()
+
+    if var_metodo_pid.get() == 'IMC':
+        lamb_interface = float(var_lambda.get())
+        kp = (2*tau_sel + theta_sel)/(k_sel * (2*lamb_interface + theta_sel))
+        ti = tau_sel + theta_sel/2
+        td = (tau_sel * theta_sel)/(2*tau_sel + theta_sel)
+    else:
+        kp = 0.6*theta_sel / (k_sel * theta_sel)
+        ti = theta_sel
+        td = theta_sel/2
+
+    return float(kp), float(ti), float(td)
+
+
+def escrever_parametros(kp, ti, td):
+    var_kp.set(str(kp))
+    var_ti.set(str(ti))
+    var_td.set(str(td))
+
+
+def atualizar_campos_sintonia(*_):
+    if var_modo.get() == 'Metodo':
+        combo_metodo_pid.configure(state='readonly')
+        entries_pid['kp'].configure(state='readonly')
+        entries_pid['ti'].configure(state='readonly')
+        entries_pid['td'].configure(state='readonly')
+        botao_limpar.configure(state='disabled')
+
+        if var_metodo_pid.get() == 'IMC':
+            entries_pid['lambda'].configure(state='normal')
+        else:
+            entries_pid['lambda'].configure(state='disabled')
+
+        try:
+            kp, ti, td = parametros_metodo_interface()
+            escrever_parametros(kp, ti, td)
+        except ValueError:
+            pass
+    else:
+        combo_metodo_pid.configure(state='disabled')
+        entries_pid['lambda'].configure(state='disabled')
+        entries_pid['kp'].configure(state='normal')
+        entries_pid['ti'].configure(state='normal')
+        entries_pid['td'].configure(state='normal')
+        botao_limpar.configure(state='normal')
+
