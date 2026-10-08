@@ -69,7 +69,6 @@ painel_id.pack(side='left', fill='y', padx=(0, 12))
 painel_grafico_id = ttk.Frame(aba_identificacao)
 painel_grafico_id.pack(side='right', fill='both', expand=True)
 
-# Dataset
 frame_dataset = ttk.LabelFrame(painel_id, text='Conjunto de dados', padding=10)
 frame_dataset.pack(fill='x', pady=(0, 10))
 
@@ -83,7 +82,6 @@ ttk.Label(frame_dataset, text=melhor_identificacao, font=('Segoe UI', 9, 'bold')
     row=1, column=1, sticky='w', pady=4
 )
 
-# metodo de identificacao
 frame_metodo_id = ttk.LabelFrame(painel_id, text='Identificacao da planta', padding=10)
 frame_metodo_id.pack(fill='x', pady=(0, 10))
 
@@ -118,7 +116,6 @@ for linha, (rotulo, variavel) in enumerate(campos_id, start=1):
 botao_usar_id = ttk.Button(frame_metodo_id, text='Selecionar identificacao')
 botao_usar_id.grid(row=5, column=0, columnspan=2, sticky='ew', pady=(10, 0))
 
-# Grafico identificacao
 fig_id = Figure(figsize=(7.2, 5.2), dpi=100)
 ax_id = fig_id.add_subplot(111)
 canvas_id = FigureCanvasTkAgg(fig_id, master=painel_grafico_id)
