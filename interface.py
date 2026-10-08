@@ -336,3 +336,101 @@ def montar_controlador_interface(kp, ti, td, planta):
     Hcl_interface = ct.feedback(Hdel_interface, 1)
     return Hcl_interface
 
+
+def sintonizar_interface():
+    try:
+        k_sel, tau_sel, theta_sel, _, _ = obter_identificacao_ativa()
+        planta = montar_planta_interface(k_sel, tau_sel, theta_sel)
+
+        if var_modo.get() == 'Metodo':
+            kp, ti, td = parametros_metodo_interface()
+            escrever_parametros(kp, ti, td)
+        else:
+            kp = float(var_kp.get())
+            ti = float(var_ti.get())
+            td = float(var_td.get())
+
+        if ti == 0:
+            messagebox.showerror('Parametros PID', 'Ti deve ser diferente de zero.')
+            return
+
+        Hcl_interface = montar_controlador_interface(kp, ti, td, planta)
+
+        if var_modo.get() == 'Manual':
+            polos = ct.poles(Hcl_interface)
+            if np.any(np.real(polos) >= 0):
+                messagebox.showerror('Controle PID', 'Sistema instavel para os parametros informados.')
+                return
+
+        setpoint_interface = float(var_setpoint.get())
+        t_interface, y_interface = ct.step_response(Hcl_interface, tempo_pid_interface)
+        y_interface *= setpoint_interface
+
+        info_interface = ct.step_info(Hcl_interface)
+        var_tr.set(f"{float(info_interface['RiseTime']):.6f}")
+        var_ts.set(f"{float(info_interface['SettlingTime']):.6f}")
+        var_mp.set(f"{float(info_interface['Overshoot']):.6f}")
+
+        ax_pid.clear()
+        ax_pid.plot(t_interface, y_interface, label='Resposta PID')
+        ax_pid.axhline(setpoint_interface, linestyle='--', label='SetPoint')
+
+        if var_marcar_tr.get():
+            ax_pid.axvline(info_interface['RiseTime'], linestyle=':', label='tr')
+
+        if var_marcar_ts.get():
+            ax_pid.axvline(info_interface['SettlingTime'], linestyle=':', label='ts')
+
+        if var_marcar_mp.get():
+            indice_pico = int(np.argmax(y_interface))
+            ax_pid.scatter(t_interface[indice_pico], y_interface[indice_pico], label='mp')
+
+        ax_pid.set_xlabel('Tempo (s)')
+        ax_id.set_ylabel('Pressao (bar)')
+        ax_pid.set_title('Controle PID')
+        ax_pid.grid()
+        ax_pid.legend()
+        fig_pid.tight_layout()
+        canvas_pid.draw_idle()
+
+        figura_atual['fig'] = fig_pid
+        var_status.set('Sintonia concluida.')
+
+    except ValueError:
+        messagebox.showerror('Entrada invalida', 'Preencha os campos numericos com valores validos.')
+    except Exception as erro:
+        messagebox.showerror('Erro', str(erro))
+
+
+def exportar_interface():
+    if figura_atual['fig'] is None:
+        messagebox.showwarning('Exportar', 'Realize uma sintonia antes de exportar.')
+        return
+
+    caminho = filedialog.asksaveasfilename(
+        title='Salvar grafico',
+        defaultextension='.png',
+        filetypes=[('Imagem PNG', '*.png')],
+        initialfile='controle_pid.png'
+    )
+
+    if caminho:
+        figura_atual['fig'].savefig(caminho, dpi=300, bbox_inches='tight')
+        var_status.set(f'Grafico salvo em: {caminho}')
+
+
+botao_usar_id.configure(command=selecionar_identificacao)
+botao_limpar.configure(command=limpar_parametros)
+botao_sintonizar.configure(command=sintonizar_interface)
+botao_exportar.configure(command=exportar_interface)
+radio_metodo.configure(command=atualizar_campos_sintonia)
+radio_manual.configure(command=atualizar_campos_sintonia)
+combo_metodo_pid.bind('<<ComboboxSelected>>', atualizar_campos_sintonia)
+entries_pid['lambda'].bind('<FocusOut>', atualizar_campos_sintonia)
+entries_pid['lambda'].bind('<Return>', atualizar_campos_sintonia)
+
+atualizar_identificacao()
+atualizar_campos_sintonia()
+
+root.mainloop()
+
