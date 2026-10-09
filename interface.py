@@ -116,6 +116,28 @@ for linha, (rotulo, variavel) in enumerate(campos_id, start=1):
 botao_usar_id = ttk.Button(frame_metodo_id, text='Selecionar identificacao')
 botao_usar_id.grid(row=5, column=0, columnspan=2, sticky='ew', pady=(10, 0))
 
+frame_modelo_id = ttk.LabelFrame(
+    painel_id,
+    text='Modelo FOPDT',
+    padding=10
+)
+frame_modelo_id.pack(fill='x', pady=(0, 10))
+
+var_funcao_id = tk.StringVar()
+var_fator_id = tk.StringVar()
+
+ttk.Label(
+    frame_modelo_id,
+    textvariable=var_funcao_id,
+    wraplength=260,
+    justify='left'
+).pack(anchor='w')
+
+ttk.Label(
+    frame_modelo_id,
+    textvariable=var_fator_id
+).pack(anchor='w', pady=(6, 0))
+
 fig_id = Figure(figsize=(7.2, 5.2), dpi=100)
 ax_id = fig_id.add_subplot(111)
 canvas_id = FigureCanvasTkAgg(fig_id, master=painel_grafico_id)
@@ -133,6 +155,14 @@ def atualizar_identificacao(*_):
     var_tau_id.set(f'{float(tau_sel):.6f}')
     var_theta_id.set(f'{float(theta_sel):.6f}')
     var_rmse_id.set(f'{float(rmse_sel):.6f}')
+    var_funcao_id.set(f'G(s) = {float(k_sel):.6f} / 'f'({float(tau_sel):.6f}s + 1) 'f'* e^(-{float(theta_sel):.6f}s)')
+
+    if float(tau_sel) != 0:
+        var_fator_id.set(
+            f'Fator theta/tau = {float(theta_sel / tau_sel):.6f}'
+        )
+    else:
+        var_fator_id.set('Fator theta/tau = indefinido')
 
     ax_id.clear()
     ax_id.plot(tempo_dados_interface, saida, label='Dados experimentais')
