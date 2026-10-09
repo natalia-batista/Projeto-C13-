@@ -123,29 +123,67 @@ frame_modelo_id = ttk.LabelFrame(
 )
 frame_modelo_id.pack(fill='x', pady=(0, 10))
 
-var_funcao_id = tk.StringVar()
+# Figura usada somente para renderizar a formula matematica
+fig_funcao_id = Figure(
+    figsize=(3.0, 0.8),
+    dpi=100
+)
+
+ax_funcao_id = fig_funcao_id.add_subplot(111)
+
+ax_funcao_id.axis('off')
+
+texto_funcao_id = ax_funcao_id.text(
+    0.5,
+    0.5,
+    '',
+    ha='center',
+    va='center',
+    fontsize=14
+)
+
+canvas_funcao_id = FigureCanvasTkAgg(
+    fig_funcao_id,
+    master=frame_modelo_id
+)
+
+canvas_funcao_id.get_tk_widget().pack(
+    fill='x',
+    expand=True
+)
+
 var_fator_id = tk.StringVar()
 
 ttk.Label(
     frame_modelo_id,
-    textvariable=var_funcao_id,
-    wraplength=260,
-    justify='left'
-).pack(anchor='w')
-
-ttk.Label(
-    frame_modelo_id,
     textvariable=var_fator_id
-).pack(anchor='w', pady=(6, 0))
+).pack(
+    anchor='center',
+    pady=(4, 0)
+)
 
 fig_id = Figure(figsize=(7.2, 5.2), dpi=100)
+
 ax_id = fig_id.add_subplot(111)
-canvas_id = FigureCanvasTkAgg(fig_id, master=painel_grafico_id)
-canvas_id.get_tk_widget().pack(fill='both', expand=True)
-toolbar_id = NavigationToolbar2Tk(canvas_id, painel_grafico_id, pack_toolbar=False)
+
+canvas_id = FigureCanvasTkAgg(
+    fig_id,
+    master=painel_grafico_id
+)
+
+canvas_id.get_tk_widget().pack(
+    fill='both',
+    expand=True
+)
+
+toolbar_id = NavigationToolbar2Tk(
+    canvas_id,
+    painel_grafico_id,
+    pack_toolbar=False
+)
+
 toolbar_id.update()
 toolbar_id.pack(fill='x')
-
 
 def atualizar_identificacao(*_):
     metodo = var_metodo_id.get()
@@ -155,11 +193,13 @@ def atualizar_identificacao(*_):
     var_tau_id.set(f'{float(tau_sel):.6f}')
     var_theta_id.set(f'{float(theta_sel):.6f}')
     var_rmse_id.set(f'{float(rmse_sel):.6f}')
-    var_funcao_id.set(f'G(s) = {float(k_sel):.6f} / 'f'({float(tau_sel):.6f}s + 1) 'f'* e^(-{float(theta_sel):.6f}s)')
+    formula = (rf"$G(s)="rf"\frac{{{float(k_sel):.4f}}}"rf"{{{float(tau_sel):.4f}s+1}}"rf"e^{{-{float(theta_sel):.4f}s}}$")
+    texto_funcao_id.set_text(formula)
 
+    canvas_funcao_id.draw_idle()
     if float(tau_sel) != 0:
         var_fator_id.set(
-            f'Fator theta/tau = {float(theta_sel / tau_sel):.6f}'
+            f'Fator theta/tau = {float(theta_sel / tau_sel):.4f}'
         )
     else:
         var_fator_id.set('Fator theta/tau = indefinido')
