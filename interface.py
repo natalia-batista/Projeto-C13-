@@ -59,9 +59,11 @@ abas.pack(fill='both', expand=True)
 
 aba_identificacao = ttk.Frame(abas, padding=10)
 aba_controle = ttk.Frame(abas, padding=10)
+aba_comparacao = ttk.Frame(abas, padding=10)
 
 abas.add(aba_identificacao, text='Identificacao')
 abas.add(aba_controle, text='Controle PID', state='disabled')
+abas.add(aba_comparacao, text='Compara\u00e7\u00e3o', state='disabled')
 
 painel_id = ttk.Frame(aba_identificacao)
 painel_id.pack(side='left', fill='y', padx=(0, 12))
@@ -314,6 +316,69 @@ toolbar_pid = NavigationToolbar2Tk(canvas_pid, painel_grafico_pid, pack_toolbar=
 toolbar_pid.update()
 toolbar_pid.pack(fill='x')
 
+painel_grafico_comparacao = ttk.Frame(aba_comparacao)
+painel_grafico_comparacao.pack(fill='both', expand=True)
+
+fig_comparacao = Figure(figsize=(9.0, 4.0), dpi=100)
+ax_comparacao = fig_comparacao.add_subplot(111)
+canvas_comparacao = FigureCanvasTkAgg(fig_comparacao, master=painel_grafico_comparacao)
+canvas_comparacao.get_tk_widget().pack(fill='both', expand=True)
+toolbar_comparacao = NavigationToolbar2Tk(
+    canvas_comparacao,
+    painel_grafico_comparacao,
+    pack_toolbar=False
+)
+toolbar_comparacao.update()
+toolbar_comparacao.pack(fill='x')
+
+frame_acoes_comparacao = ttk.Frame(aba_comparacao)
+frame_acoes_comparacao.pack(fill='x', pady=(8, 8))
+
+botao_comparar = ttk.Button(frame_acoes_comparacao, text='Comparar m\u00e9todos')
+botao_comparar.pack(side='left')
+
+var_status_comparacao = tk.StringVar(value='')
+ttk.Label(
+    frame_acoes_comparacao,
+    textvariable=var_status_comparacao
+).pack(side='left', padx=(12, 0))
+
+frame_tabela_comparacao = ttk.LabelFrame(
+    aba_comparacao,
+    text='Par\u00e2metros e m\u00e9tricas',
+    padding=8
+)
+frame_tabela_comparacao.pack(fill='x')
+
+tabela_comparacao = ttk.Treeview(
+    frame_tabela_comparacao,
+    columns=('parametro', 'imc', 'chr'),
+    show='headings',
+    height=6
+)
+tabela_comparacao.heading('parametro', text='Par\u00e2metro')
+tabela_comparacao.heading('imc', text='IMC')
+tabela_comparacao.heading('chr', text='CHR sem sobrevalor')
+tabela_comparacao.column('parametro', width=280, anchor='w')
+tabela_comparacao.column('imc', width=180, anchor='center')
+tabela_comparacao.column('chr', width=180, anchor='center')
+tabela_comparacao.pack(fill='x')
+
+linhas_comparacao = {}
+for chave, rotulo in [
+    ('kp', 'Kp'),
+    ('ti', 'Ti (s)'),
+    ('td', 'Td (s)'),
+    ('tr', 'Tempo de subida tr (s)'),
+    ('ts', 'Tempo de acomoda\u00e7\u00e3o ts (s)'),
+    ('mp', 'Sobressinal Mp (%)'),
+]:
+    linhas_comparacao[chave] = tabela_comparacao.insert(
+        '',
+        'end',
+        values=(rotulo, '', '')
+    )
+
 def parametros_metodo_interface():
     k_sel, tau_sel, theta_sel, _, _ = obter_identificacao_ativa()
 
@@ -323,8 +388,8 @@ def parametros_metodo_interface():
         ti = tau_sel + theta_sel/2
         td = (tau_sel * theta_sel)/(2*tau_sel + theta_sel)
     else:
-        kp = 0.6*theta_sel / (k_sel * theta_sel)
-        ti = theta_sel
+        kp = 0.6*tau_sel / (k_sel * theta_sel)
+        ti = tau_sel
         td = theta_sel/2
 
     return float(kp), float(ti), float(td)
@@ -366,6 +431,7 @@ def atualizar_campos_sintonia(*_):
 def selecionar_identificacao():
     identificacao_ativa['metodo'] = var_metodo_id.get()
     abas.tab(1, state='normal')
+    abas.tab(2, state='normal')
     atualizar_campos_sintonia()
     var_status.set(f"Identificacao selecionada: {identificacao_ativa['metodo']}")
     abas.select(1)
@@ -405,6 +471,160 @@ def montar_controlador_interface(kp, ti, td, planta):
     Hdel_interface = ct.series(planta, Hctrl_interface)
     Hcl_interface = ct.feedback(Hdel_interface, 1)
     return Hcl_interface
+
+
+def comparar_metodos_interface():
+    try:
+        k_sel, tau_sel, theta_sel, _, _ = obter_identificacao_ativa()
+        k_sel = float(k_sel)
+        tau_sel = float(tau_sel)
+        theta_sel = float(theta_sel)
+        lamb_interface = float(var_lambda.get())
+        setpoint_interface = float(var_setpoint.get())
+
+        if not np.all(np.isfinite([k_sel, tau_sel, theta_sel])):
+            raise ValueError('K, tau e theta devem ser valores finitos.')
+        if k_sel == 0:
+            raise ValueError('K deve ser diferente de zero.')
+        if tau_sel <= 0:
+            raise ValueError('Tau deve ser maior que zero.')
+        if theta_sel <= 0:
+            raise ValueError('Theta deve ser maior que zero.')
+        if not np.isfinite(lamb_interface) or lamb_interface <= 0:
+            raise ValueError('Lambda deve ser um valor finito e positivo.')
+        if not np.isfinite(setpoint_interface):
+            raise ValueError('SetPoint deve ser um valor finito.')
+
+        denominador_imc_kp = k_sel * (2*lamb_interface + theta_sel)
+        denominador_imc_td = 2*tau_sel + theta_sel
+        denominador_chr_kp = k_sel * theta_sel
+        if denominador_imc_kp == 0 or denominador_imc_td == 0:
+            raise ValueError('Os parametros selecionados invalidam o calculo IMC.')
+        if denominador_chr_kp == 0:
+            raise ValueError('Os parametros selecionados invalidam o calculo CHR.')
+
+        kp_imc = (2*tau_sel + theta_sel) / denominador_imc_kp
+        ti_imc = tau_sel + theta_sel/2
+        td_imc = (tau_sel * theta_sel) / denominador_imc_td
+
+        kp_chr = 0.6*tau_sel / denominador_chr_kp
+        ti_chr = tau_sel
+        td_chr = theta_sel/2
+
+        parametros_imc = [kp_imc, ti_imc, td_imc]
+        parametros_chr = [kp_chr, ti_chr, td_chr]
+        if not np.all(np.isfinite(parametros_imc)) or ti_imc <= 0:
+            raise ValueError('Os parametros calculados para IMC sao invalidos.')
+        if not np.all(np.isfinite(parametros_chr)) or ti_chr <= 0:
+            raise ValueError('Os parametros calculados para CHR sao invalidos.')
+
+        planta = montar_planta_interface(k_sel, tau_sel, theta_sel)
+        controlador_imc = montar_controlador_interface(
+            kp_imc,
+            ti_imc,
+            td_imc,
+            planta
+        )
+        controlador_chr = montar_controlador_interface(
+            kp_chr,
+            ti_chr,
+            td_chr,
+            planta
+        )
+
+        tempo_imc, resposta_imc = ct.step_response(
+            controlador_imc,
+            tempo_pid_interface
+        )
+        tempo_chr, resposta_chr = ct.step_response(
+            controlador_chr,
+            tempo_pid_interface
+        )
+        resposta_imc *= setpoint_interface
+        resposta_chr *= setpoint_interface
+
+        metricas_imc = ct.step_info(controlador_imc)
+        metricas_chr = ct.step_info(controlador_chr)
+
+        resultado_imc = {
+            'kp': kp_imc,
+            'ti': ti_imc,
+            'td': td_imc,
+            'tr': float(metricas_imc['RiseTime']),
+            'ts': float(metricas_imc['SettlingTime']),
+            'mp': float(metricas_imc['Overshoot']),
+        }
+        resultado_chr = {
+            'kp': kp_chr,
+            'ti': ti_chr,
+            'td': td_chr,
+            'tr': float(metricas_chr['RiseTime']),
+            'ts': float(metricas_chr['SettlingTime']),
+            'mp': float(metricas_chr['Overshoot']),
+        }
+
+        if np.size(tempo_imc) == 0 or np.size(tempo_imc) != np.size(resposta_imc):
+            raise ValueError('A simulacao IMC nao retornou uma resposta valida.')
+        if np.size(tempo_chr) == 0 or np.size(tempo_chr) != np.size(resposta_chr):
+            raise ValueError('A simulacao CHR nao retornou uma resposta valida.')
+        if not np.all(np.isfinite(tempo_imc)) or not np.all(np.isfinite(resposta_imc)):
+            raise ValueError('A simulacao IMC retornou valores invalidos.')
+        if not np.all(np.isfinite(tempo_chr)) or not np.all(np.isfinite(resposta_chr)):
+            raise ValueError('A simulacao CHR retornou valores invalidos.')
+        if not np.all(np.isfinite(list(resultado_imc.values()))):
+            raise ValueError('As metricas calculadas para IMC sao invalidas.')
+        if not np.all(np.isfinite(list(resultado_chr.values()))):
+            raise ValueError('As metricas calculadas para CHR sao invalidas.')
+
+        ax_comparacao.clear()
+        ax_comparacao.plot(
+            tempo_chr,
+            resposta_chr,
+            label='CHR sem sobrevalor'
+        )
+        ax_comparacao.plot(
+            tempo_imc,
+            resposta_imc,
+            label='IMC'
+        )
+        ax_comparacao.axhline(
+            setpoint_interface,
+            linestyle='--',
+            label='SetPoint'
+        )
+        ax_comparacao.set_xlabel('Tempo (s)')
+        ax_comparacao.set_ylabel('Press\u00e3o (bar)')
+        ax_comparacao.set_title('Compara\u00e7\u00e3o dos m\u00e9todos de sintonia')
+        ax_comparacao.grid()
+        ax_comparacao.legend()
+        fig_comparacao.tight_layout()
+        canvas_comparacao.draw_idle()
+
+        for chave in ('kp', 'ti', 'td', 'tr', 'ts', 'mp'):
+            rotulo = tabela_comparacao.item(
+                linhas_comparacao[chave],
+                'values'
+            )[0]
+            tabela_comparacao.item(
+                linhas_comparacao[chave],
+                values=(
+                    rotulo,
+                    f"{float(resultado_imc[chave]):.6f}",
+                    f"{float(resultado_chr[chave]):.6f}",
+                )
+            )
+
+        var_status_comparacao.set(
+            f"Compara\u00e7\u00e3o conclu\u00edda: {identificacao_ativa['metodo']}"
+        )
+
+    except ValueError as erro:
+        messagebox.showerror(
+            'Entrada inv\u00e1lida',
+            str(erro)
+        )
+    except Exception as erro:
+        messagebox.showerror('Erro', str(erro))
 
 
 def sintonizar_interface():
@@ -456,7 +676,7 @@ def sintonizar_interface():
             ax_pid.scatter(t_interface[indice_pico], y_interface[indice_pico], label='mp')
 
         ax_pid.set_xlabel('Tempo (s)')
-        ax_id.set_ylabel('Pressao (bar)')
+        ax_pid.set_ylabel('Pressao (bar)')
         ax_pid.set_title('Controle PID')
         ax_pid.grid()
         ax_pid.legend()
@@ -493,6 +713,7 @@ botao_usar_id.configure(command=selecionar_identificacao)
 botao_limpar.configure(command=limpar_parametros)
 botao_sintonizar.configure(command=sintonizar_interface)
 botao_exportar.configure(command=exportar_interface)
+botao_comparar.configure(command=comparar_metodos_interface)
 radio_metodo.configure(command=atualizar_campos_sintonia)
 radio_manual.configure(command=atualizar_campos_sintonia)
 combo_metodo_pid.bind('<<ComboboxSelected>>', atualizar_campos_sintonia)
